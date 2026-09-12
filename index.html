@@ -197,9 +197,12 @@ main{ flex:1; }
 /* calendar */
 .cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; text-align:center; }
 .cal-grid .dow{ font-size:11px; font-weight:700; color:var(--ink-faint); padding:4px 0 8px; }
-.cal-grid .day{ font-size:13px; padding:7px 0; border-radius:8px; color:var(--ink-soft); }
-.cal-grid .day.today{ background:var(--brand); color:#fff; font-weight:700; }
-.cal-grid .day.blank{ visibility:hidden; }
+.cal-grid .day{ font-size:13px; padding:7px 0; border-radius:8px; color:var(--ink-soft); border:none; background:transparent; font-family:inherit; cursor:pointer; transition:background .12s, color .12s, box-shadow .12s; }
+.cal-grid .day:hover{ background:var(--brand-soft); color:var(--brand-ink); }
+.cal-grid .day.today{ box-shadow:inset 0 0 0 2px var(--brand); font-weight:700; color:var(--brand-ink); }
+.cal-grid .day.selected{ background:var(--brand); color:#fff; font-weight:700; }
+.cal-grid .day.selected:hover{ background:var(--brand); color:#fff; }
+.cal-grid .day.blank{ visibility:hidden; cursor:default; }
 .cal-note{ margin-top:12px; font-size:12.5px; color:var(--ink-faint); }
 
 /* buddies */
@@ -426,17 +429,41 @@ main{ flex:1; }
 
   // ---------- calendar ----------
   var calGrid = document.getElementById('cal-grid');
+  var kidDateLabel = document.getElementById('kid-date');
   var dows = ['S','M','T','W','T','F','S'];
+  var weekdayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   var daysInSept2026 = 30;
   var startWeekday = 2; // Sept 1 2026 is a Tuesday (0=Sun)
   var today = 11;
-  var html = dows.map(function(d){ return '<div class="dow">'+d+'</div>'; }).join('');
-  for (var i=0;i<startWeekday;i++){ html += '<div class="day blank"></div>'; }
-  for (var d=1; d<=daysInSept2026; d++){
-    html += '<div class="day'+(d===today?' today':'')+'">'+d+'</div>';
+  var selectedDay = today;
+
+  function renderCalendar(){
+    var html = dows.map(function(d){ return '<div class="dow">'+d+'</div>'; }).join('');
+    for (var i=0;i<startWeekday;i++){ html += '<div class="day blank"></div>'; }
+    for (var d=1; d<=daysInSept2026; d++){
+      var cls = 'day' + (d===today?' today':'') + (d===selectedDay?' selected':'');
+      html += '<button type="button" class="'+cls+'" data-day="'+d+'">'+d+'</button>';
+    }
+    calGrid.innerHTML = html;
+    Array.prototype.slice.call(calGrid.querySelectorAll('.day:not(.blank)')).forEach(function(cell){
+      cell.addEventListener('click', function(){
+        selectedDay = +this.dataset.day;
+        renderCalendar();
+        renderDateLabel();
+        renderMatch();
+        renderSendState();
+      });
+    });
   }
-  calGrid.innerHTML = html;
-  document.getElementById('kid-date').textContent = 'Today · September ' + today + ', 2026';
+
+  function renderDateLabel(){
+    var weekday = weekdayNames[(startWeekday + (selectedDay - 1)) % 7];
+    var prefix = selectedDay === today ? 'Today' : weekday;
+    kidDateLabel.textContent = prefix + ' · September ' + selectedDay + ', 2026';
+  }
+
+  renderCalendar();
+  renderDateLabel();
 
   // ---------- buddies ----------
   function toMinutes(h,m,pm){ return (pm && h!==12 ? h+12 : (!pm && h===12 ? 0 : h))*60 + m; }
@@ -546,6 +573,7 @@ main{ flex:1; }
       buddyNames: buddies.filter(function(b){return b.on;}).map(function(b){return b.name;}),
       activity: act,
       start: m.start, end: m.end,
+      day: selectedDay,
       status: 'pending'
     };
     renderParent();
@@ -586,7 +614,8 @@ main{ flex:1; }
 
     var whoVal = 'Dhanish + ' + request.buddyNames.length + ' approved bud' + (request.buddyNames.length===1?'dy':'dies');
     var whoSmall = request.buddyNames.join(', ');
-    var whenVal = 'Today, ' + fmtRange(request.start, request.end);
+    var whenDayLabel = request.day === today ? 'Today' : weekdayNames[(startWeekday + (request.day - 1)) % 7] + ', Sept ' + request.day;
+    var whenVal = whenDayLabel + ', ' + fmtRange(request.start, request.end);
     var whatVal = request.activity.label + ' at ' + request.activity.place;
 
     var body =
